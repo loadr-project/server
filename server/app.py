@@ -1,3 +1,4 @@
+from logging import Logger
 from flask import Flask, send_from_directory, request, after_this_request, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -11,10 +12,8 @@ app = Flask(__name__)
 limiter = Limiter(
     app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["100 per day", "50 per hour"]
 )
-max_filesize_in_bytes = 128000000
-max_duration_in_seconds = 1800
 
 
 @app.route('/')
@@ -22,45 +21,33 @@ def index():
     try:
         url = request.args.get('url')
         if url is None:
-            raise Exception("Hawi wos is")
+            return response_with_cors(Response("Hawi wos is?")), 400
+
         m = hashlib.md5()
         m.update(url.encode('utf-8'))
         directory = "tmp/" + m.hexdigest()
+
+        @after_this_request
+        def remove_file(response_to_return):
+            shutil.rmtree(directory)
+            return response_to_return
+
+        logger = CustomLogger("youtube-dl logger")
+
         ydl = YoutubeDL({
             "outtmpl": directory + "/%(title)s.%(ext)s",
-            "max_filesize": 128000000
+            "max_filesize": 50000000,
+            "logger": logger
         })
-        with ydl:
-            result = ydl.extract_info(url, download=False)
-
-        has_filesize = True
-        filesize = 0
-        requested_formats = result.get('requested_formats')
-        if requested_formats is None:
-            has_filesize = False
-        else:
-            for format in result.get('requested_formats'):
-                format_filesize = format.get('filesize')
-                if format_filesize is None:
-                    has_filesize = False
-                    break
-                filesize += format_filesize
-
-        if has_filesize:
-            if filesize > max_filesize_in_bytes:
-                raise Exception("Downloaded video exceeds maximum filesize of %d bytes" % max_filesize_in_bytes)
-        elif False:
-            # TODO neither requested_formats, nor filesize, nor duration exists on reddit videos?
-            # filesize can't be read from formats, so we fallback to limiting the duration
-            app.logger.info("No requested format found: " + url)
-            duration_in_seconds = result.get('duration')
-            if duration_in_seconds > max_duration_in_seconds:
-                raise Exception("Downloaded video exceeds maximum duration of %d seconds" % max_duration_in_seconds)
 
         with ydl:
             ydl.download([url])
 
         files = [f for f in listdir(directory) if isfile(join(directory, f))]
+
+        messages = logger.getMessages()
+        if len(messages) > 0 and "File is larger than max-filesize" in messages[-1]:
+            raise Exception("Max file-size exceeded.")
 
         if len(files) == 0:
             raise Exception("No files were downloaded?")
@@ -68,15 +55,22 @@ def index():
         filename = files[0]
         file_path = directory
 
-        @after_this_request
-        def remove_file(response_to_return):
-            shutil.rmtree(directory)
-            return response_to_return
-
         return response_with_cors(send_from_directory(file_path, filename, as_attachment=True))
     except Exception as e:
         app.logger.error(e)
         return response_with_cors(Response(str(e))), 400
+
+
+class CustomLogger(Logger):
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.messages = []
+
+    def handle(self, record):
+        self.messages.append(record.msg)
+
+    def getMessages(self):
+        return self.messages
 
 
 def response_with_cors(response):
