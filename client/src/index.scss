@@ -1,0 +1,17 @@
+@import "variables";
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+  font-family: "Lucida Console", Monaco, monospace;
+  color: #ffffff;
+}
+#root {
+  background: $primaryColor;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+* {
+  box-sizing: border-box;
+}
