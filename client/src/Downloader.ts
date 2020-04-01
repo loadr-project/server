@@ -1,3 +1,5 @@
+import contentDisposition from "content-disposition"
+
 export class Downloader {
   private readonly url: string;
   constructor(url: string) {
@@ -9,19 +11,25 @@ export class Downloader {
       fetch("https://api." + window.location.host + "?url=" + this.url)
         .then(async response => {
           const headers = response.headers;
-          const contentDisposition = headers.get("content-disposition");
+          const contentDispositionValue = headers.get("content-disposition");
+          if(contentDispositionValue === null) {
+            reject("Content-Disposition empty!");
+            return;
+          }
+          const parsedContentDisposition = contentDisposition.parse(contentDispositionValue);
+          const fileName = parsedContentDisposition.parameters.filename;
+
+          if(!fileName) {
+            reject("Can't get filename from Content-Disposition!");
+            return;
+          }
+
           const contentType = headers.get("content-type");
           if(contentType === null) {
             reject("Content-Type empty!");
             return;
           }
-          let fileName;
-          try {
-            fileName = this.getFilename(contentDisposition)
-          } catch (error) {
-            reject(error);
-            return;
-          }
+
           if(response.status !== 200) {
             reject(await response.text());
             return;
@@ -31,23 +39,5 @@ export class Downloader {
         })
         .catch(reject);
     }))
-  }
-
-  private getFilename(contentDisposition: string|null): string {
-    if(contentDisposition === null) {
-      throw new Error("Content-Disposition empty!");
-    }
-    const parts = contentDisposition.split(";");
-
-    if(parts.length < 2) {
-      throw new Error("Unexpected Content-Disposition: " + contentDisposition);
-    }
-    const prefix = ' filename="';
-    const appendix = '"';
-    const part = parts[1];
-    if(!part.startsWith(prefix) || !part.endsWith(appendix)) {
-      throw new Error("Unexpected Content-Disposition: " + contentDisposition);
-    }
-    return part.slice(prefix.length, part.length - appendix.length);
   }
 }
