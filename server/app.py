@@ -37,7 +37,12 @@ def index():
         ydl = YoutubeDL({
             "outtmpl": directory + "/%(title)s.%(ext)s",
             "max_filesize": 50000000,
-            "logger": logger
+            "logger": logger,
+            "postprocessors": [{
+                # use (any) ffmpeg postprocessor so it's run through ffmpeg at least once, so mime-type
+                # bits are set correctly and it can be shared via WhatsApp (otherwise it has application/octet-stream)
+                "key": "FFmpegMetadata"
+            }]
         })
 
         with ydl:
