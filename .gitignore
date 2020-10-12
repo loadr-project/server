@@ -1,2 +1,3 @@
-docker-compose.yml
-.idea
+tmp
+env
+__pycache__
