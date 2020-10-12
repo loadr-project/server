@@ -9,10 +9,14 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v2
-      - name: Push to Docker Hub
-        uses: docker/build-push-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-          repository: elektropepi/loadr-server
-          tag_with_ref: true
+      - name: Push to Docker Hub
+        uses: docker/build-push-action@v2
+        with:
+          tags: elektropepi/loadr-server:latest
